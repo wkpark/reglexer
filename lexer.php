@@ -49,10 +49,13 @@ class LexerParallelRegex {
 
     /**
      *    Adds a pattern with an optional label.
-     *    @param string $pattern      Perl style regex, but ( and )
-     *                                lose the usual meaning.
+     *    @param mixed $pattern       Perl style regex. Must be UTF-8
+     *                                encoded. If its a string, the (, )
+     *                                lose their meaning unless they
+     *                                form part of a lookahead or
+     *                                lookbehind assertation.
      *    @param string $label        Label of regex to be returned
-     *                                on a match.
+     *                                on a match. Label must be ASCII
      *    @access public
      */
     function addPattern($pattern, $label = true) {
@@ -80,8 +83,9 @@ class LexerParallelRegex {
             return false;
         }
         $match = $matches[0];
-        for ($i = 1; $i < count($matches); $i++) {
-            if ($matches[$i]) {
+        $size = count($matches);
+        for ($i = 1; $i < $size; $i++) {
+            if ($matches[$i] && isset($this->_labels[$i - 1])) {
                 return $this->_labels[$i - 1];
             }
         }
@@ -310,24 +314,26 @@ class SimpleLexer {
         if (! isset($this->_parser)) {
             return false;
         }
-        $length = strlen($raw);
+        $initialLength = strlen($raw);
+        $length = $initialLength;
+        $pos = 0;
         while (is_array($parsed = $this->_reduce($raw))) {
-            list($raw, $unmatched, $matched, $mode) = $parsed;
-            if (! $this->_dispatchTokens($unmatched, $matched, $mode)) {
+            list($unmatched, $matched, $mode) = $parsed;
+            $currentLength = strlen($raw);
+            $matchPos = $initialLength - $currentLength - strlen($matched);
+            if (! $this->_dispatchTokens($unmatched, $matched, $mode, $pos, $matchPos)) {
                 return false;
             }
-            if ($raw === '') {
-                return true;
-            }
-            if (strlen($raw) == $length) {
+            if ($currentLength == $length) {
                 return false;
             }
-            $length = strlen($raw);
+            $length = $currentLength;
+            $pos = $initialLength - $currentLength;
         }
         if (! $parsed) {
             return false;
         }
-        return $this->_invokeParser($raw, LEXER_UNMATCHED);
+        return $this->_invokeParser($raw, LEXER_UNMATCHED, $pos);
     }
 
     /**
@@ -338,32 +344,34 @@ class SimpleLexer {
      *    @param string $matched      Actual token match.
      *    @param string $mode         Mode after match. A boolean
      *                                false mode causes no change.
+     *    @param int $pos         Current byte index location in raw doc
+     *                                thats being parsed
      *    @return boolean             False if there was any error
      *                                from the parser.
      *    @access private
      */
-    function _dispatchTokens($unmatched, $matched, $mode = false) {
-        if (! $this->_invokeParser($unmatched, LEXER_UNMATCHED)) {
+    function _dispatchTokens($unmatched, $matched, $mode = false, $initialPos, $matchPos) {
+        if (! $this->_invokeParser($unmatched, LEXER_UNMATCHED, $initialPos) ){
             return false;
         }
         if (is_bool($mode)) {
             return $this->_invokeParser($matched, LEXER_MATCHED);
         }
         if ($this->_isModeEnd($mode)) {
-            if (! $this->_invokeParser($matched, LEXER_EXIT)) {
+            if (! $this->_invokeParser($matched, LEXER_EXIT, $matchPos)) {
                 return false;
             }
             return $this->_mode->leave();
         }
         if ($this->_isSpecialMode($mode)) {
             $this->_mode->enter($this->_decodeSpecial($mode));
-            if (! $this->_invokeParser($matched, LEXER_SPECIAL)) {
+            if (! $this->_invokeParser($matched, LEXER_SPECIAL, $matchPos)) {
                 return false;
             }
             return $this->_mode->leave();
         }
         $this->_mode->enter($mode);
-        return $this->_invokeParser($matched, LEXER_ENTER);
+        return $this->_invokeParser($matched, LEXER_ENTER, $matchPos);
     }
 
     /**
@@ -408,14 +416,16 @@ class SimpleLexer {
      *    @param string $content        Text parsed.
      *    @param boolean $is_match      Token is recognised rather
      *                                  than unparsed data.
+     *    @param int $pos         Current byte index location in raw doc
+     *                                thats being parsed
      *    @access private
      */
-    function _invokeParser($content, $is_match) {
+    function _invokeParser($content, $is_match, $pos) {
         if (($content === '') || ($content === false)) {
             return true;
         }
         $handler = $this->_mode_handlers[$this->_mode->getCurrent()];
-        return $this->_parser->$handler($content, $is_match);
+        return $this->_parser->$handler($content, $is_match, $pos);
     }
 
     /**
