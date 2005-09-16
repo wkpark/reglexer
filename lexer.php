@@ -93,6 +93,34 @@ class LexerParallelRegex {
     }
 
     /**
+     *    Attempts to split the string against all patterns at once
+     *
+     *    @param string $subject      String to match against.
+     *    @param array $split         The split result: array containing, pre-match, match & post-match strings
+     *    @return boolean             True on success.
+     *    @access public
+     *
+     *    @author Christopher Smith <chris@jalakai.co.uk>
+     */
+    function split($subject, &$split) {
+        if (count($this->_patterns) == 0) {
+            return false;
+        }
+
+        if (! preg_match($this->_getCompoundedRegex(), $subject, $matches)) {
+            $split = array($subject, "", "");
+            return false;
+        }
+
+        $idx = count($matches)-2;
+
+        list($pre, $post) = preg_split($this->_patterns[$idx].$this->_getPerlMatchingFlags(), $subject, 2);
+
+        $split = array($pre, $matches[0], $post);
+        return isset($this->_labels[$idx]) ? $this->_labels[$idx] : true;
+    }
+
+    /**
      *    Compounds the patterns into a single
      *    regular expression separated with the
      *    "or" operator. Caches the regex.
@@ -443,10 +471,8 @@ class SimpleLexer {
      *    @access private
      */
     function _reduce($raw) {
-        if ($action = $this->_regexes[$this->_mode->getCurrent()]->match($raw, $match)) {
-            $unparsed_character_count = strpos($raw, $match);
-            $unparsed = substr($raw, 0, $unparsed_character_count);
-            $raw = substr($raw, $unparsed_character_count + strlen($match));
+        if ($action = $this->_regexes[$this->_mode->getCurrent()]->split($raw, $split)) {
+            list($unparsed, $match, $raw) = $split;
             return array($raw, $unparsed, $match, $action);
         }
         return true;
