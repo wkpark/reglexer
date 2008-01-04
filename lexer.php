@@ -130,11 +130,52 @@ class LexerParallelRegex {
      */
     function _getCompoundedRegex() {
         if ($this->_regex == null) {
-            for ($i = 0, $count = count($this->_patterns); $i < $count; $i++) {
-                $this->_patterns[$i] = '(' . str_replace(
-                        array('/', '(', ')'),
-                        array('\/', '\(', '\)'),
-                        $this->_patterns[$i]) . ')';
+            $cnt = count($this->_patterns);
+            for ($i = 0; $i < $cnt; $i++) {
+
+                /*
+                 * decompose the input pattern into "(", "(?", ")",
+                 * "[...]", "[]..]", "[^]..]", "[...[:...:]..]", "\x"...
+                 * elements.
+                 */
+                preg_match_all('/\\\\.|' .
+                               '\(\?|' .
+                               '[()]|' .
+                               '\[\^?\]?(?:\\\\.|\[:[^]]*:\]|[^]\\\\])*\]|' .
+                               '[^[()\\\\]+/', $this->_patterns[$i], $elts);
+
+                $pattern = "";
+                $level = 0;
+
+                foreach ($elts[0] as $elt) {
+                    /*
+                     * for "(", ")" remember the nesting level, add "\"
+                     * only to the non-"(?" ones.
+                     */
+
+                    switch($elt) {
+                    case '(':
+                        $pattern .= '\(';
+                        break;
+                    case ')':
+                        if ($level > 0)
+                            $level--; /* closing (? */
+                        else
+                            $pattern .= '\\';
+                        $pattern .= ')';
+                        break;
+                    case '(?':
+                        $level++;
+                        $pattern .= '(?';
+                        break;
+                    default:
+                        if (substr($elt, 0, 1) == '\\')
+                            $pattern .= $elt;
+                        else
+                            $pattern .= str_replace('/', '\/', $elt);
+                    }
+                }
+                $this->_patterns[$i] = "($pattern)";
             }
             $this->_regex = "/" . implode("|", $this->_patterns) . "/" . $this->_getPerlMatchingFlags();
         }
