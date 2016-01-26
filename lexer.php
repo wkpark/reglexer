@@ -551,9 +551,8 @@ class RegLexer
         $consumed = $this->_invokeParser($raw, LEXER_UNMATCHED, $pos);
         $pos += $consumed;
         while ($this->_mode->getCurrent() != 'base') {
-            $this->_invokeParser('', LEXER_EXIT, $pos);
-            if (!$this->_mode->leave())
-                break;
+            $consumed = $this->_invokeParser('', LEXER_EXIT, $pos);
+            $pos += $consumed;
         }
 
         return $consumed;
@@ -583,24 +582,10 @@ class RegLexer
             return $this->_invokeParser($matches, LEXER_MATCHED, $matchPos, $raw);
         }
         if ($this->_isModeEnd($mode)) {
-            $consumed = $this->_invokeParser($matches, LEXER_EXIT, $matchPos);
-            if ($consumed === false) {
-                return false;
-            }
-            $this->_mode->leave();
-            return $consumed;
+            return $this->_invokeParser($matches, LEXER_EXIT, $matchPos);
         }
-        if ($this->_isSpecialMode($mode)) {
-            $this->_mode->enter($this->_decodeSpecial($mode));
-            $consumed = $this->_invokeParser($matches, LEXER_SPECIAL, $matchPos);
-            if ($consumed === false) {
-                return false;
-            }
-            $this->_mode->leave();
-            return $consumed;
-        }
-        $this->_mode->enter($mode);
-        return $this->_invokeParser($matches, LEXER_ENTER, $matchPos, $raw);
+
+        return $this->_invokeParser($matches, $mode, $matchPos, $raw);
     }
 
     /**
@@ -646,21 +631,41 @@ class RegLexer
      *    mode. Empty content will be ignored. The lexer
      *    has a parser handler for each mode in the lexer.
      *    @param string/string[] $matches  Matched or parsed text/array.
-     *    @param boolean $is_match    Token is recognised rather
+     *    @param string $mode         Token is recognised rather
      *                                than unparsed data.
      *    @param int $pos             Current byte index location in raw doc
      *                                thats being parsed
+     *    @return int                 Consumed string length.
      *    @access private
      */
-    function _invokeParser($matches, $is_match, $pos, $raw = null)
+    function _invokeParser($matches, $mode, $pos, $raw = null)
     {
-        if (empty($matches) && $is_match !== LEXER_EXIT) {
+        if (empty($matches) && $mode !== LEXER_EXIT) {
             return true;
         }
-        $handler = $this->_mode_handlers[$this->_mode->getCurrent()];
+
+        if (is_numeric($mode)) {
+            $parser_mode = $this->_mode->getCurrent();
+        } else if ($this->_isSpecialMode($mode)) {
+            $parser_mode = $this->_decodeSpecial($mode);
+            $mode = LEXER_SPECIAL;
+        } else {
+            $parser_mode = $mode;
+            $mode = LEXER_ENTER;
+        }
+
+        $handler = $this->_mode_handlers[$parser_mode];
         if (is_string($matches))
             $matches = (array)$matches;
-        return $this->_parser->$handler($matches, $is_match, $pos, $raw);
+        $consumed = $this->_parser->$handler($matches, $mode, $pos, $raw);
+        if ($consumed === false)
+            return false;
+
+        if ($mode === LEXER_EXIT)
+            $this->_mode->leave();
+        else if ($mode === LEXER_ENTER)
+            $this->_mode->enter($parser_mode);
+        return $consumed;
     }
 
     /**
