@@ -414,15 +414,17 @@ class RegLexer
      *    @param string $mode         Should only apply this
      *                                pattern when dealing with
      *                                this type of input.
+     *    @param string $label        additional label for lowlevel operation
+     *                                can be another modename or others.
      *    @access public
      */
-    function addPattern($pattern, $mode = "accept")
+    function addPattern($pattern, $mode = "accept", $label = true)
     {
         if (! isset($this->_regexes[$mode])) {
             $this->_regexes[$mode] = new LexerParallelRegex($this->_case, $this->_modifier);
         }
 
-        $this->_regexes[$mode]->addPattern($pattern);
+        $this->_regexes[$mode]->addPattern($pattern, $label);
         if (! isset($this->_mode_handlers[$mode])) {
             $this->_mode_handlers[$mode] = $mode;
         }
@@ -644,7 +646,9 @@ class RegLexer
             return true;
         }
 
-        if (is_numeric($mode)) {
+        // numeric cases - normal LEXER_* mode
+        // @label - low level LEXER_MATCHED cases
+        if (is_numeric($mode) || $mode[0] == '@') {
             $parser_mode = $this->_mode->getCurrent();
         } else if ($this->_isSpecialMode($mode)) {
             $parser_mode = $this->_decodeSpecial($mode);
