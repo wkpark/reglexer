@@ -89,7 +89,7 @@ class LexerParallelRegex
             return false;
         }
 
-        if (! preg_match($this->_getCompoundedRegex(), $subject, $matches, $flags)) {
+        if (! preg_match($this->_getCompoundedRegex(), $subject, $matches, $flags, $pos)) {
             $matches = array();
             return false;
         }
@@ -106,7 +106,7 @@ class LexerParallelRegex
                 if (($flags & PREG_OFFSET_CAPTURE) != PREG_OFFSET_CAPTURE) {
                     // get the offset again.
                     preg_match('/'.$this->_patterns[$idx].'/'.$this->_getPerlMatchingFlags(),
-                        $subject, $offset_matches, PREG_OFFSET_CAPTURE);
+                        $subject, $offset_matches, PREG_OFFSET_CAPTURE, $pos);
                     $pos = $offset_matches[0][1];
                 } else {
                     // get the offset.
@@ -525,27 +525,35 @@ class RegLexer
         $length = strlen($raw);
         $pos = 0;
         $lid = 1;
+        $oldoff = 0;
+        $offset = 0;
         while ($mode = $this->match($raw, $matches, $offset)) {
-            $unmatched = substr($raw, 0, $offset);
-            $raw = substr($raw, $offset);
+            $unmatched = substr($raw, $oldoff, $offset);
+            $remain = substr($raw, $offset);
 
             $newpos = $pos + $offset;
-            $consumed = $this->_dispatchTokens($unmatched, $matches, $raw, $mode, $pos, $newpos);
+            $consumed = $this->_dispatchTokens($unmatched, $matches, $remain, $mode, $pos, $newpos);
             if ($consumed === false) {
                 return false;
             }
-            $remain = substr($raw, $consumed);
-            if ($remain === '') {
-                return true;
-            }
 
-            $offset += $consumed;
-            if ($offset == 0) {
-                return false;
+            if ($consumed > 0) {
+                $raw = substr($remain, $consumed);
+                if ($raw === '') {
+                    break;
+                }
+
+                $offset += $consumed;
+                $length -= $offset;
+                $pos += $offset;
+
+                $offset = 0;
+                $oldoff = 0;
+            } else {
+                // not consumed. save and shift offset
+                $oldoff = $offset;
+                $offset += strlen($matches[0]);
             }
-            $length -= $offset;
-            $pos += $offset;
-            $raw = $remain;
             $lid += substr_count($unmatched, "\n");
         }
 
