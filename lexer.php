@@ -523,38 +523,49 @@ class RegLexer
             return false;
         }
         $length = strlen($raw);
+        $rawpos = 0;
+
         $pos = 0;
-        $lid = 1;
-        $oldoff = 0;
+        $newpos = 0;
+
+        $rawoff = 0;
         $offset = 0;
+
+        $lid = 1;
         while ($mode = $this->match($raw, $matches, $offset)) {
-            $unmatched = substr($raw, $oldoff, $offset);
+            $unmatched = substr($raw, $rawoff, $offset - $rawoff);
             $remain = substr($raw, $offset);
 
-            $newpos = $pos + $offset;
+            $pos = $rawpos + $rawoff;
+            $newpos = $rawpos + $offset;
             $consumed = $this->_dispatchTokens($unmatched, $matches, $remain, $mode, $pos, $newpos);
             if ($consumed === false) {
                 return false;
             }
 
-            if ($consumed > 0) {
+            if ($consumed === true || $consumed == 0) {
+                $consumed = strlen($matches[0]);
                 $raw = substr($remain, $consumed);
-                if ($raw === '') {
+                if ($raw == '') {
                     break;
                 }
 
                 $offset += $consumed;
                 $length -= $offset;
-                $pos += $offset;
+                $rawpos += $offset;
 
-                $offset = 0;
-                $oldoff = 0;
+                $rawoff = $offset = 0;
             } else {
-                // not consumed. save and shift offset
-                $oldoff = $offset;
-                $offset += strlen($matches[0]);
+                // shift offset
+                $offset += $consumed;
+                $rawoff = $offset;
             }
             $lid += substr_count($unmatched, "\n");
+        }
+        // check $rawoff and set remaining $raw
+        if ($rawoff > 0) {
+            $raw = substr($raw, $rawoff);
+            $pos = $rawpos + $rawoff;
         }
 
         // close all tags.
