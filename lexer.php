@@ -89,35 +89,33 @@ class LexerParallelRegex
             return false;
         }
 
-        if (! preg_match($this->_getCompoundedRegex(), $subject, $matches, $flags, $pos)) {
+        if (! preg_match($this->_getCompoundedRegex(), $subject, $matches, PREG_OFFSET_CAPTURE, $pos)) {
             $matches = array();
             return false;
         }
 
         $idx = 1;
         foreach ($this->_patterns_index as $k=>$v) {
-            if (!empty($matches[$k])) {
-                if ($flags == PREG_OFFSET_CAPTURE &&
-                        (!isset($matches[$k][1]) || $matches[$k][1] == -1))
-                {
-                    continue;
-                }
+            if (isset($matches[$k][1]) && $matches[$k][1] != -1) {
+                // the matched index
                 $idx = $v;
-                if (($flags & PREG_OFFSET_CAPTURE) != PREG_OFFSET_CAPTURE) {
-                    // get the offset again.
-                    preg_match('/'.$this->_patterns[$idx].'/'.$this->_getPerlMatchingFlags(),
-                        $subject, $offset_matches, PREG_OFFSET_CAPTURE, $pos);
-                    $pos = $offset_matches[0][1];
-                } else {
-                    // get the offset.
-                    $pos = $matches[$k][1];
-                }
 
-                if (isset($this->_labels[$idx])) {
-                    // remove not matched portion
-                    array_splice($matches, 0, $k);
-                    return $this->_labels[$idx];
+                // get the matched offset.
+                $offset = $matches[$k][1];
+
+                // remove not matched portion
+                array_splice($matches, 0, $k);
+                if (($flags & PREG_OFFSET_CAPTURE) != PREG_OFFSET_CAPTURE) {
+                    // matched column only same as array_column($matches, 0)
+                    $matched = array();
+                    foreach ($matches as $i=>$m)
+                        $matched[$i] = $m[0];
+                    $matches = $matched;
                 }
+                // return offset
+                $pos = $offset;
+
+                return $this->_labels[$idx];
             }
         }
 
