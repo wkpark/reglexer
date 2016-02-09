@@ -532,23 +532,22 @@ class RegLexer
         $lid = 1;
         while ($mode = $this->match($raw, $matches, $offset)) {
             $unmatched = substr($raw, $rawoff, $offset - $rawoff);
-            $remain = substr($raw, $offset);
 
             $pos = $rawpos + $rawoff;
             $newpos = $rawpos + $offset;
-            $consumed = $this->_dispatchTokens($unmatched, $matches, $remain, $mode, $pos, $newpos);
+            $consumed = $this->_dispatchTokens($unmatched, $matches, $mode, $pos, $newpos);
             if ($consumed === false) {
                 return false;
             }
 
             if ($consumed === true || $consumed == 0) {
                 $consumed = strlen($matches[0]);
-                $raw = substr($remain, $consumed);
+                $offset += $consumed;
+                $raw = substr($raw, $offset);
                 if ($raw == '') {
                     break;
                 }
 
-                $offset += $consumed;
                 $length -= $offset;
                 $rawpos += $offset;
 
@@ -583,7 +582,6 @@ class RegLexer
      *    to a new mode if one is listed.
      *    @param string $unmatched    Unmatched leading portion.
      *    @param string/string[] $matches Actual matched text or matched array
-     *    @param string $raw          unparsed text.
      *    @param string $mode         Mode after match. A boolean
      *                                false mode causes no change.
      *    @param int $pos             Current byte index location in raw doc
@@ -592,19 +590,19 @@ class RegLexer
      *                                from the parser.
      *    @access private
      */
-    function _dispatchTokens($unmatched, $matches, $raw, $mode = false, $initialPos, $matchPos)
+    function _dispatchTokens($unmatched, $matches, $mode = false, $initialPos, $matchPos)
     {
         if (isset($unmatched[0]) && ! $this->_invokeParser($unmatched, LEXER_UNMATCHED, $initialPos)) {
             return false;
         }
         if (is_bool($mode)) {
-            return $this->_invokeParser($matches, LEXER_MATCHED, $matchPos, $raw);
+            return $this->_invokeParser($matches, LEXER_MATCHED, $matchPos);
         }
         if ($this->_isModeEnd($mode)) {
             return $this->_invokeParser($matches, LEXER_EXIT, $matchPos);
         }
 
-        return $this->_invokeParser($matches, $mode, $matchPos, $raw);
+        return $this->_invokeParser($matches, $mode, $matchPos);
     }
 
     /**
