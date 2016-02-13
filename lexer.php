@@ -380,6 +380,7 @@ class RegLexer
     var $_regexes;
     var $_parser;
     var $_mode;
+    var $_mode_start;
     var $_mode_handlers;
     var $_case;
     var $_modifier;
@@ -400,6 +401,7 @@ class RegLexer
         $this->_modifier = $modifier;
         $this->_regexes = array();
         $this->_parser = &$parser;
+        $this->_mode_start = $start;
         $this->_mode = new LexerStateStack($start);
         $this->_mode_handlers = array($start => $start);
     }
@@ -569,9 +571,8 @@ class RegLexer
         // close all tags.
         $consumed = $this->_invokeParser($raw, LEXER_UNMATCHED, $pos);
         $pos += $consumed;
-        while ($this->_mode->getCurrent() != 'base') {
-            $consumed = $this->_invokeParser('', LEXER_EXIT, $pos);
-            $pos += $consumed;
+        while ($this->_mode->getCurrent() != $this->_mode_start) {
+            $this->_invokeParser('', LEXER_EXIT, $pos);
         }
 
         return $consumed;
