@@ -84,7 +84,7 @@ class LexerParallelRegex
      */
     function match($subject, &$matches, &$pos = 0, $flags = 0)
     {
-        if (count($this->_patterns) == 0) {
+        if (!isset($this->_patterns[0])) {
             $matches = array();
             return false;
         }
@@ -135,7 +135,7 @@ class LexerParallelRegex
      */
     function split($subject, &$split)
     {
-        if (count($this->_patterns) == 0) {
+        if (!isset($this->_patterns[0])) {
             return false;
         }
 
@@ -202,7 +202,7 @@ class LexerParallelRegex
                 $level = 0;
                 $captures = 0;
                 $referenced = array();
-                for ($i = 0; $i < count($chunks); $i++) {
+                for ($i = 0, $cnt = count($chunks); $i < $cnt; $i++) {
                     $chunk = $chunks[$i];
 
                     // recheck nowrap
@@ -318,6 +318,7 @@ class LexerParallelRegex
 class LexerStateStack
 {
     var $_stack;
+    var $_count;
 
     /**
      *    Constructor. Starts in named state.
@@ -327,6 +328,7 @@ class LexerStateStack
     function LexerStateStack($start)
     {
         $this->_stack = array($start);
+        $this->_count = 1;
     }
 
     /**
@@ -336,7 +338,7 @@ class LexerStateStack
      */
     function getCurrent()
     {
-        return $this->_stack[count($this->_stack) - 1];
+        return $this->_stack[$this->_count - 1];
     }
 
     /**
@@ -348,6 +350,7 @@ class LexerStateStack
     function enter($state)
     {
         array_push($this->_stack, $state);
+        $this->_count ++;
     }
 
     /**
@@ -359,10 +362,11 @@ class LexerStateStack
      */
     function leave()
     {
-        if (count($this->_stack) == 1) {
+        if ($this->_count == 1) {
             return false;
         }
         array_pop($this->_stack);
+        $this->_count --;
         return true;
     }
 }
@@ -569,10 +573,10 @@ class RegLexer
         }
 
         // close all tags.
-        $consumed = $this->_invokeParser($raw, LEXER_UNMATCHED, $pos);
+        $consumed = $this->_invokeParser(array($raw), LEXER_UNMATCHED, $pos);
         $pos += $consumed;
         while ($this->_mode->getCurrent() != $this->_mode_start) {
-            $this->_invokeParser('', LEXER_EXIT, $pos);
+            $this->_invokeParser(array(''), LEXER_EXIT, $pos);
         }
 
         return $consumed;
@@ -676,7 +680,7 @@ class RegLexer
         }
 
         $handler = $this->_mode_handlers[$parser_mode];
-        if (is_string($matches))
+        if (!is_array($matches))
             $matches = (array)$matches;
         $consumed = $this->_parser->$handler($matches, $mode, $pos, $raw);
         if ($consumed === false)
