@@ -669,7 +669,7 @@ class RegLexer
 
         // numeric cases - normal LEXER_* mode
         // @label - low level LEXER_MATCHED cases
-        if (is_numeric($mode) || $mode[0] == '@') {
+        if (is_int($mode) || $mode[0] == '@') {
             $parser_mode = $this->_mode->getCurrent();
         } else if ($this->_isSpecialMode($mode)) {
             $parser_mode = $this->_decodeSpecial($mode);
